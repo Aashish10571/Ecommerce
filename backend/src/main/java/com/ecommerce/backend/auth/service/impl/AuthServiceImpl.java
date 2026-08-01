@@ -253,6 +253,23 @@ public class AuthServiceImpl implements AuthService {
         mailService.sendMail(email, subject, message);
     }
 
+    @Override
+    public TokenResponsePayload refreshToken(TokenRefreshPayload requestPayload) {
+        String refreshToken = requestPayload.refreshToken();
+
+        jwtUtil.validateToken(refreshToken);
+
+        UserTokenPayload extractedPayload = jwtUtil.extractUserPayload(refreshToken);
+        User user = userRepository.findByEmail(extractedPayload.email()).orElseThrow(() -> new UserNotFoundException("User not found"));
+
+        UserTokenPayload payload = authMapper.toDto(user);
+
+        String newAccessToken = jwtUtil.generateToken(Token.ACCESS_TOKEN, payload);
+        String newRefreshToken = jwtUtil.generateToken(Token.REFRESH_TOKEN, payload);
+
+        return new TokenResponsePayload(newAccessToken, newRefreshToken);
+    }
+
     private String generateCode() {
         return String.valueOf(new SecureRandom().nextInt(900000) + 100000);
     }

@@ -14,6 +14,7 @@ import com.ecommerce.backend.auth.service.impl.AuthServiceImpl;
 import com.ecommerce.backend.integration.mail.MailService;
 import com.ecommerce.backend.security.jwt.dtos.UserTokenPayload;
 import com.ecommerce.backend.security.jwt.enums.Token;
+import com.ecommerce.backend.security.jwt.exceptions.TokenExpiredException;
 import com.ecommerce.backend.security.jwt.util.JwtUtil;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import org.junit.jupiter.api.BeforeEach;
@@ -379,6 +380,65 @@ public class AuthServiceImplTest {
 
             verify(userRepository, never()).save(any());
             verifyNoInteractions(mailService);
+        }
+    }
+
+    @Nested
+    @DisplayName("refreshToken")
+    class RefreshToken {
+
+        private static final String OLD_REFRESH_TOKEN = "old-refresh-token-value";
+
+        private TokenRefreshPayload refreshRequest;
+        private UserTokenPayload extractedPayload;
+
+        @BeforeEach
+        void init() {
+            refreshRequest = new TokenRefreshPayload(OLD_REFRESH_TOKEN);
+
+            extractedPayload = mock(UserTokenPayload.class);
+        }
+
+        @Test
+        @DisplayName("issues a new access + refresh token pair when the refresh token is valid")
+        void refreshToken_withValidToken_returnsNewTokenPair() {
+            when(jwtUtil.validateToken(OLD_REFRESH_TOKEN)).thenReturn(true);
+            when(jwtUtil.extractUserPayload(OLD_REFRESH_TOKEN)).thenReturn(extractedPayload);
+            when(extractedPayload.email()).thenReturn(EMAIL);
+            when(userRepository.findByEmail(EMAIL)).thenReturn(Optional.of(localUser));
+            when(authMapper.toDto(localUser)).thenReturn(userTokenPayload);
+            when(jwtUtil.generateToken(Token.ACCESS_TOKEN, userTokenPayload)).thenReturn(ACCESS_TOKEN);
+            when(jwtUtil.generateToken(Token.REFRESH_TOKEN, userTokenPayload)).thenReturn(REFRESH_TOKEN);
+
+            TokenResponsePayload result = authService.refreshToken(refreshRequest);
+
+            assertEquals(ACCESS_TOKEN, result.accessToken());
+            assertEquals(REFRESH_TOKEN, result.refreshToken());
+            verify(jwtUtil).validateToken(OLD_REFRESH_TOKEN);
+        }
+
+        @Test
+        @DisplayName("propagates the exception when the refresh token is expired/invalid")
+        void refreshToken_whenTokenValidationFails_propagatesException() {
+            when(jwtUtil.validateToken(OLD_REFRESH_TOKEN)).thenThrow(new TokenExpiredException("Authentication token has expired"));
+
+            assertThrows(TokenExpiredException.class, () -> authService.refreshToken(refreshRequest));
+            verify(jwtUtil, never()).extractUserPayload(anyString());
+            verifyNoInteractions(userRepository, authMapper);
+            verify(jwtUtil, never()).generateToken(any(), any());
+        }
+
+        @Test
+        @DisplayName("throws UserNotFoundException when the token's user no longer exists")
+        void refreshToken_whenUserNoLongerExists_throwsUserNotFoundException() {
+            when(jwtUtil.validateToken(OLD_REFRESH_TOKEN)).thenReturn(true);
+            when(jwtUtil.extractUserPayload(OLD_REFRESH_TOKEN)).thenReturn(extractedPayload);
+            when(extractedPayload.email()).thenReturn(EMAIL);
+            when(userRepository.findByEmail(EMAIL)).thenReturn(Optional.empty());
+
+            assertThrows(UserNotFoundException.class, () -> authService.refreshToken(refreshRequest));
+            verify(authMapper, never()).toDto(any());
+            verify(jwtUtil, never()).generateToken(any(), any());
         }
     }
 }

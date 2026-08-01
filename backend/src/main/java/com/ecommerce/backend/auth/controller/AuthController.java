@@ -98,4 +98,20 @@ public class AuthController {
                 )
         );
     }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<ApiResponse<TokenResponsePayload>> refresh(
+            @RequestBody TokenRefreshPayload requestPayload,
+            HttpServletRequest request
+    ) {
+        TokenResponsePayload responsePayload = authService.refreshToken(requestPayload);
+
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        "Token refresh successful",
+                        responsePayload,
+                        request.getRequestURI()
+                )
+        );
+    }
 }

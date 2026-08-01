@@ -15,4 +15,6 @@ public interface AuthService {
 
     @Transactional
     void resetPassword(PasswordResetPayload resetPayload);
+
+    TokenResponsePayload refreshToken(TokenRefreshPayload requestPayload);
 }
