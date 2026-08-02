@@ -13,7 +13,7 @@ import com.ecommerce.backend.auth.repository.RefreshTokenRepository;
 import com.ecommerce.backend.auth.repository.UserRepository;
 import com.ecommerce.backend.auth.repository.VerificationCodeRepository;
 import com.ecommerce.backend.auth.service.AuthService;
-import com.ecommerce.backend.integration.mail.MailService;
+import com.ecommerce.backend.integration.mail.publisher.MailEventPublisher;
 import com.ecommerce.backend.security.jwt.dtos.UserTokenPayload;
 import com.ecommerce.backend.security.jwt.enums.Token;
 import com.ecommerce.backend.security.jwt.exceptions.TokenInvalidException;
@@ -36,9 +36,9 @@ public class AuthServiceImpl implements AuthService {
 
     private final JwtUtil jwtUtil;
     private final AuthMapper authMapper;
-    private final MailService mailService;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final MailEventPublisher mailEventPublisher;
     private final GoogleTokenVerifier googleTokenVerifier;
     private final RefreshTokenRepository refreshTokenRepository;
     private final VerificationCodeRepository verificationCodeRepository;
@@ -94,7 +94,7 @@ public class AuthServiceImpl implements AuthService {
                         Regards
                         """;
 
-        mailService.sendMail(user.getEmail(), subject, message);
+        mailEventPublisher.publish(user.getEmail(), subject, message);
 
         return responsePayload;
     }
@@ -131,7 +131,7 @@ public class AuthServiceImpl implements AuthService {
                         Regards
                         """;
 
-        mailService.sendMail(savedUser.getEmail(), subject, message);
+        mailEventPublisher.publish(savedUser.getEmail(), subject, message);
 
         return responsePayload;
     }
@@ -187,7 +187,7 @@ public class AuthServiceImpl implements AuthService {
                     """;
         }
 
-        mailService.sendMail(user.getEmail(), subject, message);
+        mailEventPublisher.publish(user.getEmail(), subject, message);
 
         return responsePayload;
     }
@@ -225,7 +225,7 @@ public class AuthServiceImpl implements AuthService {
                         Regards
                         """.formatted(code);
 
-            mailService.sendMail(email, subject, message);
+            mailEventPublisher.publish(email, subject, message);
         });
     }
 
@@ -271,7 +271,7 @@ public class AuthServiceImpl implements AuthService {
                         Regards
                         """;
 
-        mailService.sendMail(email, subject, message);
+        mailEventPublisher.publish(email, subject, message);
     }
 
     @Override

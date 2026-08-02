@@ -13,7 +13,7 @@ import com.ecommerce.backend.auth.repository.RefreshTokenRepository;
 import com.ecommerce.backend.auth.repository.UserRepository;
 import com.ecommerce.backend.auth.repository.VerificationCodeRepository;
 import com.ecommerce.backend.auth.service.impl.AuthServiceImpl;
-import com.ecommerce.backend.integration.mail.MailService;
+import com.ecommerce.backend.integration.mail.publisher.MailEventPublisher;
 import com.ecommerce.backend.security.jwt.dtos.UserTokenPayload;
 import com.ecommerce.backend.security.jwt.enums.Token;
 import com.ecommerce.backend.security.jwt.exceptions.TokenExpiredException;
@@ -45,7 +45,7 @@ public class AuthServiceImplTest {
 
     @Mock private JwtUtil jwtUtil;
     @Mock private AuthMapper authMapper;
-    @Mock private MailService mailService;
+    @Mock private MailEventPublisher mailEventPublisher;
     @Mock private UserRepository userRepository;
     @Mock private PasswordEncoder passwordEncoder;
     @Mock private GoogleTokenVerifier googleTokenVerifier;
@@ -102,7 +102,7 @@ public class AuthServiceImplTest {
         }
 
         @Test
-        @DisplayName("returns access + refresh tokens and emails a login alert on success")
+        @DisplayName("returns access + refresh tokens and publishes a login alert event on success")
         void loginUser_withValidCredentials_returnsTokensAndSendsAlert() {
             when(userRepository.findByEmail(EMAIL)).thenReturn(Optional.of(localUser));
             when(passwordEncoder.matches(RAW_PASSWORD, ENCODED_PASSWORD)).thenReturn(true);
@@ -114,7 +114,7 @@ public class AuthServiceImplTest {
             assertEquals(ACCESS_TOKEN, responsePayload.accessToken());
             assertEquals(REFRESH_TOKEN, responsePayload.refreshToken());
             ArgumentCaptor<String> subjectCaptor = ArgumentCaptor.forClass(String.class);
-            verify(mailService).sendMail(eq(EMAIL), subjectCaptor.capture(), anyString());
+            verify(mailEventPublisher).publish(eq(EMAIL), subjectCaptor.capture(), anyString());
             assertEquals("New Login Detected", subjectCaptor.getValue());
             verify(refreshTokenRepository).save(any());
         }
@@ -125,7 +125,7 @@ public class AuthServiceImplTest {
             when(userRepository.findByEmail(EMAIL)).thenReturn(Optional.empty());
 
             assertThrows(InvalidCredentialsException.class, () -> authService.loginUser(requestPayload));
-            verifyNoInteractions(passwordEncoder, jwtUtil, mailService, refreshTokenRepository);
+            verifyNoInteractions(passwordEncoder, jwtUtil, mailEventPublisher, refreshTokenRepository);
         }
 
         @Test
@@ -139,7 +139,7 @@ public class AuthServiceImplTest {
             when(userRepository.findByEmail(EMAIL)).thenReturn(Optional.of(googleUser));
 
             assertThrows(AuthProviderException.class, () -> authService.loginUser(requestPayload));
-            verifyNoInteractions(passwordEncoder, jwtUtil, mailService, refreshTokenRepository);
+            verifyNoInteractions(passwordEncoder, jwtUtil, mailEventPublisher, refreshTokenRepository);
         }
 
         @Test
@@ -149,7 +149,7 @@ public class AuthServiceImplTest {
             when(passwordEncoder.matches(RAW_PASSWORD, ENCODED_PASSWORD)).thenReturn(false);
 
             assertThrows(InvalidCredentialsException.class, () -> authService.loginUser(requestPayload));
-            verifyNoInteractions(jwtUtil, mailService, refreshTokenRepository);
+            verifyNoInteractions(jwtUtil, mailEventPublisher, refreshTokenRepository);
         }
     }
 
@@ -178,7 +178,7 @@ public class AuthServiceImplTest {
             assertEquals(ACCESS_TOKEN, responsePayload.accessToken());
             assertEquals(REFRESH_TOKEN, responsePayload.refreshToken());
             verify(userRepository).save(localUser);
-            verify(mailService).sendMail(eq(EMAIL), eq("Welcome! Your Account Is Ready"), anyString());
+            verify(mailEventPublisher).publish(eq(EMAIL), eq("Welcome! Your Account Is Ready"), anyString());
             verify(refreshTokenRepository).save(any());
         }
 
@@ -189,7 +189,7 @@ public class AuthServiceImplTest {
 
             assertThrows(UserAlreadyExistsException.class, () -> authService.registerNewUser(requestPayload));
             verify(userRepository, never()).save(any());
-            verifyNoInteractions(passwordEncoder, jwtUtil, mailService, refreshTokenRepository);
+            verifyNoInteractions(passwordEncoder, jwtUtil, mailEventPublisher, refreshTokenRepository);
         }
     }
 
@@ -228,7 +228,7 @@ public class AuthServiceImplTest {
             assertEquals(ACCESS_TOKEN, result.accessToken());
             assertEquals(REFRESH_TOKEN, result.refreshToken());
             verify(userRepository, never()).save(any());
-            verify(mailService).sendMail(eq(EMAIL), eq("New Login Detected"), anyString());
+            verify(mailEventPublisher).publish(eq(EMAIL), eq("New Login Detected"), anyString());
         }
 
         @Test
@@ -253,7 +253,7 @@ public class AuthServiceImplTest {
             verify(userRepository).save(userCaptor.capture());
             assertEquals(EMAIL, userCaptor.getValue().getEmail());
             assertEquals(AuthProvider.GOOGLE, userCaptor.getValue().getAuthProvider());
-            verify(mailService).sendMail(eq(EMAIL), eq("Welcome! Your Account Is Ready"), anyString());
+            verify(mailEventPublisher).publish(eq(EMAIL), eq("Welcome! Your Account Is Ready"), anyString());
         }
     }
 
@@ -269,7 +269,7 @@ public class AuthServiceImplTest {
         }
 
         @Test
-        @DisplayName("purges old codes, saves a fresh one, and emails it when the user exists")
+        @DisplayName("purges old codes, saves a fresh one, and publishes an event with it when the user exists")
         void requestReset_whenUserExists_generatesAndEmailsCode() {
             when(userRepository.findByEmail(EMAIL)).thenReturn(Optional.of(localUser));
 
@@ -284,7 +284,7 @@ public class AuthServiceImplTest {
             assertNotNull(saved.getCode());
             assertEquals(6, saved.getCode().length());
             assertTrue(saved.getExpiresAt().isAfter(LocalDateTime.now()));
-            verify(mailService).sendMail(eq(EMAIL), eq("Password Reset Code"), contains(saved.getCode()));
+            verify(mailEventPublisher).publish(eq(EMAIL), eq("Password Reset Code"), contains(saved.getCode()));
         }
 
         @Test
@@ -294,7 +294,7 @@ public class AuthServiceImplTest {
 
             authService.requestReset(resetRequest);
 
-            verifyNoInteractions(verificationCodeRepository, mailService);
+            verifyNoInteractions(verificationCodeRepository, mailEventPublisher);
         }
     }
 
@@ -322,7 +322,7 @@ public class AuthServiceImplTest {
         }
 
         @Test
-        @DisplayName("updates password, marks code used, and emails confirmation on success")
+        @DisplayName("updates password, marks code used, and publishes a confirmation event on success")
         void resetPassword_withValidCode_updatesPasswordAndInvalidatesCode() {
             when(userRepository.findByEmail(EMAIL)).thenReturn(Optional.of(localUser));
             when(verificationCodeRepository.findByEmailAndCode(EMAIL, CODE)).thenReturn(Optional.of(validCode));
@@ -334,7 +334,7 @@ public class AuthServiceImplTest {
             assertTrue(validCode.isUsed());
             verify(userRepository).save(localUser);
             verify(verificationCodeRepository).save(validCode);
-            verify(mailService).sendMail(eq(EMAIL), eq("Your Password Has Been Changed"), anyString());
+            verify(mailEventPublisher).publish(eq(EMAIL), eq("Your Password Has Been Changed"), anyString());
         }
 
         @Test
@@ -343,7 +343,7 @@ public class AuthServiceImplTest {
             when(userRepository.findByEmail(EMAIL)).thenReturn(Optional.empty());
 
             assertThrows(UserNotFoundException.class, () -> authService.resetPassword(resetPayload));
-            verifyNoInteractions(verificationCodeRepository, mailService);
+            verifyNoInteractions(verificationCodeRepository, mailEventPublisher);
         }
 
         @Test
@@ -355,7 +355,7 @@ public class AuthServiceImplTest {
             assertThrows(InvalidVerificationCodeException.class, () -> authService.resetPassword(resetPayload));
 
             verify(userRepository, never()).save(any());
-            verifyNoInteractions(mailService);
+            verifyNoInteractions(mailEventPublisher);
         }
 
         @Test
@@ -375,7 +375,7 @@ public class AuthServiceImplTest {
                     () -> authService.resetPassword(resetPayload));
 
             verify(userRepository, never()).save(any());
-            verifyNoInteractions(mailService);
+            verifyNoInteractions(mailEventPublisher);
         }
 
         @Test
@@ -395,7 +395,7 @@ public class AuthServiceImplTest {
                     () -> authService.resetPassword(resetPayload));
 
             verify(userRepository, never()).save(any());
-            verifyNoInteractions(mailService);
+            verifyNoInteractions(mailEventPublisher);
         }
     }
 

@@ -4,7 +4,7 @@ import com.ecommerce.backend.auth.entity.User;
 import com.ecommerce.backend.auth.exception.InvalidCredentialsException;
 import com.ecommerce.backend.auth.exception.UserNotFoundException;
 import com.ecommerce.backend.auth.repository.UserRepository;
-import com.ecommerce.backend.integration.mail.MailService;
+import com.ecommerce.backend.integration.mail.publisher.MailEventPublisher;
 import com.ecommerce.backend.profile.dto.request.PasswordChangePayload;
 import com.ecommerce.backend.profile.dto.request.UsernameChangePayload;
 import com.ecommerce.backend.profile.dto.response.ProfileResponsePayload;
@@ -20,10 +20,10 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ProfileServiceImpl implements ProfileService {
 
-    private final MailService mailService;
     private final ProfileMapper profileMapper;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final MailEventPublisher mailEventPublisher;
 
     @Override
     public ProfileResponsePayload getUserProfile(UUID userId) {
@@ -67,6 +67,6 @@ public class ProfileServiceImpl implements ProfileService {
                         Regards
                         """;
 
-        mailService.sendMail(user.getEmail(), subject, message);
+        mailEventPublisher.publish(user.getEmail(), subject, message);
     }
 }

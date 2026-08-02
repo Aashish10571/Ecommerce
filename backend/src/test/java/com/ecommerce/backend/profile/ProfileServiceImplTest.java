@@ -5,7 +5,7 @@ import com.ecommerce.backend.auth.enums.AuthProvider;
 import com.ecommerce.backend.auth.exception.InvalidCredentialsException;
 import com.ecommerce.backend.auth.exception.UserNotFoundException;
 import com.ecommerce.backend.auth.repository.UserRepository;
-import com.ecommerce.backend.integration.mail.MailService;
+import com.ecommerce.backend.integration.mail.publisher.MailEventPublisher;
 import com.ecommerce.backend.profile.dto.request.PasswordChangePayload;
 import com.ecommerce.backend.profile.dto.request.UsernameChangePayload;
 import com.ecommerce.backend.profile.dto.response.ProfileResponsePayload;
@@ -32,7 +32,7 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 public class ProfileServiceImplTest {
 
-    @Mock private MailService mailService;
+    @Mock private MailEventPublisher mailEventPublisher;
     @Mock private ProfileMapper profileMapper;
     @Mock private UserRepository userRepository;
     @Mock private PasswordEncoder passwordEncoder;
@@ -153,7 +153,7 @@ public class ProfileServiceImplTest {
         }
 
         @Test
-        @DisplayName("updates the password and sends a confirmation email when the current password matches")
+        @DisplayName("updates the password and publishes a confirmation event when the current password matches")
         void changePassword_currentPasswordMatches_updatesPasswordAndSendsEmail() {
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(localUser));
             when(passwordEncoder.matches(OLD_PASSWORD, OLD_PASSWORD)).thenReturn(true);
@@ -163,7 +163,7 @@ public class ProfileServiceImplTest {
 
             assertEquals(NEW_ENCODED_PASSWORD, localUser.getPassword());
             verify(userRepository).save(localUser);
-            verify(mailService).sendMail(eq(EMAIL), eq("Your Password Has Been Changed"), anyString());
+            verify(mailEventPublisher).publish(eq(EMAIL), eq("Your Password Has Been Changed"), anyString());
         }
 
         @Test
@@ -173,7 +173,7 @@ public class ProfileServiceImplTest {
 
             assertThrows(UserNotFoundException.class, () -> profileService.changePassword(USER_ID, requestPayload));
 
-            verifyNoInteractions(passwordEncoder, mailService);
+            verifyNoInteractions(passwordEncoder, mailEventPublisher);
             verify(userRepository, never()).save(any());
         }
 
@@ -186,7 +186,7 @@ public class ProfileServiceImplTest {
             assertThrows(InvalidCredentialsException.class, () -> profileService.changePassword(USER_ID, requestPayload));
 
             verify(userRepository, never()).save(any());
-            verifyNoInteractions(mailService);
+            verifyNoInteractions(mailEventPublisher);
         }
     }
 }
