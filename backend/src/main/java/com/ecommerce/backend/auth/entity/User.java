@@ -16,6 +16,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "users")
 public class User extends AuditTable {
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "user_id", nullable = false, updatable = false)

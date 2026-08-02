@@ -2,28 +2,33 @@ package com.ecommerce.backend.auth.service.impl;
 
 import com.ecommerce.backend.auth.dto.request.*;
 import com.ecommerce.backend.auth.dto.response.TokenResponsePayload;
+import com.ecommerce.backend.auth.entity.RefreshToken;
 import com.ecommerce.backend.auth.entity.User;
 import com.ecommerce.backend.auth.entity.VerificationCode;
 import com.ecommerce.backend.auth.enums.AuthProvider;
 import com.ecommerce.backend.auth.exception.*;
 import com.ecommerce.backend.auth.google.GoogleTokenVerifier;
 import com.ecommerce.backend.auth.mapper.AuthMapper;
+import com.ecommerce.backend.auth.repository.RefreshTokenRepository;
 import com.ecommerce.backend.auth.repository.UserRepository;
 import com.ecommerce.backend.auth.repository.VerificationCodeRepository;
 import com.ecommerce.backend.auth.service.AuthService;
 import com.ecommerce.backend.integration.mail.MailService;
 import com.ecommerce.backend.security.jwt.dtos.UserTokenPayload;
 import com.ecommerce.backend.security.jwt.enums.Token;
+import com.ecommerce.backend.security.jwt.exceptions.TokenInvalidException;
 import com.ecommerce.backend.security.jwt.util.JwtUtil;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -35,7 +40,30 @@ public class AuthServiceImpl implements AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final GoogleTokenVerifier googleTokenVerifier;
+    private final RefreshTokenRepository refreshTokenRepository;
     private final VerificationCodeRepository verificationCodeRepository;
+
+    @Value("${jwt.token.refresh.expire.time}")
+    private Long refreshTokenExpirationTime;
+
+    private TokenResponsePayload issueTokenPair(UserTokenPayload payload) {
+        UUID accessTokenId = UUID.randomUUID();
+        UUID refreshTokenId = UUID.randomUUID();
+
+        String accessToken = jwtUtil.generateToken(Token.ACCESS_TOKEN, payload, accessTokenId);
+        String refreshToken = jwtUtil.generateToken(Token.REFRESH_TOKEN, payload, refreshTokenId);
+
+        RefreshToken record = RefreshToken.builder()
+                .id(refreshTokenId)
+                .userId(payload.userId())
+                .revoked(false)
+                .expiresAt(LocalDateTime.now().plusSeconds(refreshTokenExpirationTime / 1000))
+                .build();
+
+        refreshTokenRepository.save(record);
+
+        return new TokenResponsePayload(accessToken, refreshToken);
+    }
 
     @Override
     public TokenResponsePayload loginUser(LoginRequestPayload requestPayload) {
@@ -51,9 +79,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         UserTokenPayload payload = authMapper.toDto(user);
-
-        String accessToken = jwtUtil.generateToken(Token.ACCESS_TOKEN, payload);
-        String refreshToken = jwtUtil.generateToken(Token.REFRESH_TOKEN, payload);
+        TokenResponsePayload responsePayload = issueTokenPair(payload);
 
         String subject = "New Login Detected";
 
@@ -71,7 +97,7 @@ public class AuthServiceImpl implements AuthService {
 
         mailService.sendMail(user.getEmail(), subject, message);
 
-        return new TokenResponsePayload(accessToken, refreshToken);
+        return responsePayload;
     }
 
     @Override
@@ -90,9 +116,7 @@ public class AuthServiceImpl implements AuthService {
         User savedUser = userRepository.save(newUser);
 
         UserTokenPayload payload = authMapper.toDto(savedUser);
-
-        String accessToken = jwtUtil.generateToken(Token.ACCESS_TOKEN, payload);
-        String refreshToken = jwtUtil.generateToken(Token.REFRESH_TOKEN, payload);
+        TokenResponsePayload responsePayload = issueTokenPair(payload);
 
         String subject = "Welcome! Your Account Is Ready";
 
@@ -110,7 +134,7 @@ public class AuthServiceImpl implements AuthService {
 
         mailService.sendMail(savedUser.getEmail(), subject, message);
 
-        return new TokenResponsePayload(accessToken, refreshToken);
+        return responsePayload;
     }
 
     @Override
@@ -131,9 +155,7 @@ public class AuthServiceImpl implements AuthService {
         ));
 
         UserTokenPayload userTokenPayload = authMapper.toDto(user);
-
-        String accessToken = jwtUtil.generateToken(Token.ACCESS_TOKEN, userTokenPayload);
-        String refreshToken = jwtUtil.generateToken(Token.REFRESH_TOKEN, userTokenPayload);
+        TokenResponsePayload responsePayload = issueTokenPair(userTokenPayload);
 
         String subject;
         String message;
@@ -168,7 +190,7 @@ public class AuthServiceImpl implements AuthService {
 
         mailService.sendMail(user.getEmail(), subject, message);
 
-        return new TokenResponsePayload(accessToken, refreshToken);
+        return responsePayload;
     }
 
     @Override
@@ -255,19 +277,41 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public TokenResponsePayload refreshToken(TokenRefreshPayload requestPayload) {
+        String oldRefreshToken = requestPayload.refreshToken();
+
+        jwtUtil.validateToken(oldRefreshToken);
+
+        UUID tokenId = jwtUtil.extractTokenId(oldRefreshToken);
+
+        RefreshToken record = refreshTokenRepository.findById(tokenId).orElseThrow(() -> new TokenInvalidException("Refresh token not recognized"));
+
+        if (record.isRevoked()) {
+            throw new TokenInvalidException("Refresh token has been revoked");
+        }
+
+        UserTokenPayload extractedPayload = jwtUtil.extractUserPayload(oldRefreshToken);
+
+        User user = userRepository.findByEmail(extractedPayload.email()).orElseThrow(() -> new UserNotFoundException("User not found"));
+
+        record.setRevoked(true);
+        refreshTokenRepository.save(record);
+
+        UserTokenPayload payload = authMapper.toDto(user);
+        return issueTokenPair(payload);
+    }
+
+    @Override
+    public void logoutUser(TokenRefreshPayload requestPayload) {
         String refreshToken = requestPayload.refreshToken();
 
         jwtUtil.validateToken(refreshToken);
 
-        UserTokenPayload extractedPayload = jwtUtil.extractUserPayload(refreshToken);
-        User user = userRepository.findByEmail(extractedPayload.email()).orElseThrow(() -> new UserNotFoundException("User not found"));
+        UUID tokenId = jwtUtil.extractTokenId(refreshToken);
 
-        UserTokenPayload payload = authMapper.toDto(user);
+        RefreshToken record = refreshTokenRepository.findById(tokenId).orElseThrow(() -> new TokenInvalidException("Refresh token not recognized"));
 
-        String newAccessToken = jwtUtil.generateToken(Token.ACCESS_TOKEN, payload);
-        String newRefreshToken = jwtUtil.generateToken(Token.REFRESH_TOKEN, payload);
-
-        return new TokenResponsePayload(newAccessToken, newRefreshToken);
+        record.setRevoked(true);
+        refreshTokenRepository.save(record);
     }
 
     private String generateCode() {

@@ -17,4 +17,6 @@ public interface AuthService {
     void resetPassword(PasswordResetPayload resetPayload);
 
     TokenResponsePayload refreshToken(TokenRefreshPayload requestPayload);
+
+    void logoutUser(TokenRefreshPayload requestPayload);
 }

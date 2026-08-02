@@ -59,10 +59,11 @@ public class JwtUtil {
         return TokenExtractor.extractTokenFromHeader(request);
     }
 
-    public String generateToken(Token tokenType, UserTokenPayload tokenPayload) {
+    public String generateToken(Token tokenType, UserTokenPayload tokenPayload, UUID tokenId) {
         long expirationTime = tokenType == Token.ACCESS_TOKEN ? accessTokenExpirationTime : refreshTokenExpirationTime;
 
         JwtBuilder jwtBuilder = Jwts.builder()
+                .id(tokenId.toString())
                 .subject(tokenPayload.email())
                 .claim("userId", tokenPayload.userId())
                 .issuedAt(new Date())
@@ -119,5 +120,20 @@ public class JwtUtil {
         Role role = roleStr != null ? Role.valueOf(roleStr) : Role.USER;
 
         return new UserTokenPayload(userId, email, role);
+    }
+
+    public UUID extractTokenId(String token) {
+        Claims claims = parseClaims(token);
+        String tokenId = claims.getId();
+
+        if (tokenId == null || tokenId.isBlank()) {
+            throw new TokenInvalidException("Token is missing an identifier");
+        }
+
+        try {
+            return UUID.fromString(tokenId);
+        } catch (IllegalArgumentException e) {
+            throw new TokenInvalidException("Invalid token identifier format");
+        }
     }
 }
