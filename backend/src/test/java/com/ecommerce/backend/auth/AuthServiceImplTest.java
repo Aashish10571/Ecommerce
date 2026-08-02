@@ -81,6 +81,11 @@ public class AuthServiceImplTest {
     }
 
     private void stubTokenGeneration(UserTokenPayload payload) {
+        when(refreshTokenRepository.save(any(RefreshToken.class))).thenAnswer(invocation -> {
+            RefreshToken rt = invocation.getArgument(0);
+            rt.setId(UUID.randomUUID());
+            return rt;
+        });
         when(jwtUtil.generateToken(eq(Token.ACCESS_TOKEN), eq(payload), any(UUID.class))).thenReturn(ACCESS_TOKEN);
         when(jwtUtil.generateToken(eq(Token.REFRESH_TOKEN), eq(payload), any(UUID.class))).thenReturn(REFRESH_TOKEN);
     }
@@ -420,8 +425,8 @@ public class AuthServiceImplTest {
         }
 
         @Test
-        @DisplayName("issues a new access + refresh token pair when the refresh token is valid")
-        void refreshToken_withValidToken_returnsNewTokenPair() {
+        @DisplayName("issues a new access token but keeps the same refresh token when valid")
+        void refreshToken_withValidToken_returnsNewAccessTokenSameRefreshToken() {
             when(jwtUtil.validateToken(OLD_REFRESH_TOKEN)).thenReturn(true);
             when(jwtUtil.extractTokenId(OLD_REFRESH_TOKEN)).thenReturn(tokenId);
             when(refreshTokenRepository.findById(tokenId)).thenReturn(Optional.of(existingRecord));
@@ -429,15 +434,17 @@ public class AuthServiceImplTest {
             when(extractedPayload.email()).thenReturn(EMAIL);
             when(userRepository.findByEmail(EMAIL)).thenReturn(Optional.of(localUser));
             when(authMapper.toDto(localUser)).thenReturn(userTokenPayload);
-            stubTokenGeneration(userTokenPayload);
+            when(jwtUtil.generateToken(eq(Token.ACCESS_TOKEN), eq(userTokenPayload), any(UUID.class)))
+                    .thenReturn(ACCESS_TOKEN);
 
             TokenResponsePayload result = authService.refreshToken(refreshRequest);
 
             assertEquals(ACCESS_TOKEN, result.accessToken());
-            assertEquals(REFRESH_TOKEN, result.refreshToken());
-            assertTrue(existingRecord.isRevoked(), "old refresh token record should be revoked");
+            assertEquals(OLD_REFRESH_TOKEN, result.refreshToken());
+            assertFalse(existingRecord.isRevoked(), "existing refresh token record should NOT be revoked");
             verify(jwtUtil).validateToken(OLD_REFRESH_TOKEN);
-            verify(refreshTokenRepository, times(2)).save(any());
+            verify(jwtUtil, never()).generateToken(eq(Token.REFRESH_TOKEN), any(), any());
+            verify(refreshTokenRepository, never()).save(any());
         }
 
         @Test
@@ -469,6 +476,20 @@ public class AuthServiceImplTest {
         @DisplayName("throws TokenInvalidException when the refresh token record has been revoked")
         void refreshToken_whenRecordAlreadyRevoked_throwsTokenInvalidException() {
             existingRecord.setRevoked(true);
+            when(jwtUtil.validateToken(OLD_REFRESH_TOKEN)).thenReturn(true);
+            when(jwtUtil.extractTokenId(OLD_REFRESH_TOKEN)).thenReturn(tokenId);
+            when(refreshTokenRepository.findById(tokenId)).thenReturn(Optional.of(existingRecord));
+
+            assertThrows(TokenInvalidException.class, () -> authService.refreshToken(refreshRequest));
+            verify(jwtUtil, never()).extractUserPayload(anyString());
+            verifyNoInteractions(userRepository, authMapper);
+            verify(refreshTokenRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("throws TokenInvalidException when the refresh token record has expired")
+        void refreshToken_whenRecordExpired_throwsTokenInvalidException() {
+            existingRecord.setExpiresAt(LocalDateTime.now().minusMinutes(1));
             when(jwtUtil.validateToken(OLD_REFRESH_TOKEN)).thenReturn(true);
             when(jwtUtil.extractTokenId(OLD_REFRESH_TOKEN)).thenReturn(tokenId);
             when(refreshTokenRepository.findById(tokenId)).thenReturn(Optional.of(existingRecord));

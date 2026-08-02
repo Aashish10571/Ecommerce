@@ -36,7 +36,7 @@ public class ProfileController {
         );
     }
 
-    @PostMapping("/username")
+    @PatchMapping("/username")
     public ResponseEntity<ApiResponse<ProfileResponsePayload>> changeUsername(
             @AuthenticationPrincipal UserTokenPayload principal,
             @Valid @RequestBody UsernameChangePayload requestPayload,
@@ -53,6 +53,7 @@ public class ProfileController {
         );
     }
 
+    @PostMapping("/password")
     public ResponseEntity<ApiResponse<Object>> changePassword(
             @AuthenticationPrincipal UserTokenPayload principal,
             @Valid @RequestBody PasswordChangePayload requestPayload,

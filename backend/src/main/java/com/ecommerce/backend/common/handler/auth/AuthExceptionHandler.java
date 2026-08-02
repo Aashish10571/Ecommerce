@@ -3,12 +3,15 @@ package com.ecommerce.backend.common.handler.auth;
 import com.ecommerce.backend.auth.exception.*;
 import com.ecommerce.backend.common.dto.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
+@Order(Ordered.HIGHEST_PRECEDENCE)
 public class AuthExceptionHandler {
 
     @ExceptionHandler(AuthProviderException.class)

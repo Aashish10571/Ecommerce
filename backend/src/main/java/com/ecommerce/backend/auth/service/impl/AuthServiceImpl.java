@@ -48,19 +48,18 @@ public class AuthServiceImpl implements AuthService {
 
     private TokenResponsePayload issueTokenPair(UserTokenPayload payload) {
         UUID accessTokenId = UUID.randomUUID();
-        UUID refreshTokenId = UUID.randomUUID();
 
         String accessToken = jwtUtil.generateToken(Token.ACCESS_TOKEN, payload, accessTokenId);
-        String refreshToken = jwtUtil.generateToken(Token.REFRESH_TOKEN, payload, refreshTokenId);
 
         RefreshToken record = RefreshToken.builder()
-                .id(refreshTokenId)
                 .userId(payload.userId())
                 .revoked(false)
                 .expiresAt(LocalDateTime.now().plusSeconds(refreshTokenExpirationTime / 1000))
                 .build();
 
-        refreshTokenRepository.save(record);
+        RefreshToken savedRecord = refreshTokenRepository.save(record);
+
+        String refreshToken = jwtUtil.generateToken(Token.REFRESH_TOKEN, payload, savedRecord.getId());
 
         return new TokenResponsePayload(accessToken, refreshToken);
     }
@@ -283,21 +282,27 @@ public class AuthServiceImpl implements AuthService {
 
         UUID tokenId = jwtUtil.extractTokenId(oldRefreshToken);
 
-        RefreshToken record = refreshTokenRepository.findById(tokenId).orElseThrow(() -> new TokenInvalidException("Refresh token not recognized"));
+        RefreshToken record = refreshTokenRepository.findById(tokenId)
+                .orElseThrow(() -> new TokenInvalidException("Refresh token not recognized"));
 
         if (record.isRevoked()) {
             throw new TokenInvalidException("Refresh token has been revoked");
         }
 
+        if (record.getExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new TokenInvalidException("Refresh token has expired");
+        }
+
         UserTokenPayload extractedPayload = jwtUtil.extractUserPayload(oldRefreshToken);
 
-        User user = userRepository.findByEmail(extractedPayload.email()).orElseThrow(() -> new UserNotFoundException("User not found"));
-
-        record.setRevoked(true);
-        refreshTokenRepository.save(record);
+        User user = userRepository.findByEmail(extractedPayload.email())
+                .orElseThrow(() -> new UserNotFoundException("User not found"));
 
         UserTokenPayload payload = authMapper.toDto(user);
-        return issueTokenPair(payload);
+
+        String newAccessToken = jwtUtil.generateToken(Token.ACCESS_TOKEN, payload, UUID.randomUUID());
+
+        return new TokenResponsePayload(newAccessToken, oldRefreshToken);
     }
 
     @Override
