@@ -26,5 +26,4 @@ public record SignupRequestPayload(
                 message = "Password must contain uppercase, lowercase, number, and special character"
         )
         String password
-
 ) { }

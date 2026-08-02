@@ -108,7 +108,7 @@ public class AuthController {
 
         return ResponseEntity.ok(
                 ApiResponse.success(
-                        "Token refresh successful",
+                        "Token refreshed successfullly",
                         responsePayload,
                         request.getRequestURI()
                 )
