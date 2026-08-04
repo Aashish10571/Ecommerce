@@ -34,7 +34,7 @@ public class User extends AuditTable {
     @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(name = "user_role", nullable = false)
-    private Role role = Role.USER;
+    private Role role = Role.CUSTOMER;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "auth_provider", nullable = false)
