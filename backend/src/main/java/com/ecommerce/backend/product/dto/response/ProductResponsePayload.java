@@ -1,9 +1,7 @@
 package com.ecommerce.backend.product.dto.response;
 
 import com.ecommerce.backend.category.dto.response.CategoryResponsePayload;
-import com.ecommerce.backend.product.dto.common.ProductColorPayload;
 import com.ecommerce.backend.product.dto.common.ProductImagePayload;
-import com.ecommerce.backend.product.dto.common.ProductSizePayload;
 import com.ecommerce.backend.product.enums.ProductStatus;
 
 import java.math.BigDecimal;
@@ -20,8 +18,8 @@ public record ProductResponsePayload (
         ProductStatus status,
         CategoryResponsePayload category,
         List<ProductImagePayload> images,
-        List<ProductSizePayload> sizes,
-        List<ProductColorPayload> colors,
+        List<ProductSizeResponsePayload> sizes,
+        List<ProductColorResponsePayload> colors,
         List<ProductVariantResponsePayload> variants,
         LocalDateTime createdAt
 ) { }

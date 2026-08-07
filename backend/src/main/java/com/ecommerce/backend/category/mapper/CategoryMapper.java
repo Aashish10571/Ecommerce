@@ -3,31 +3,17 @@ package com.ecommerce.backend.category.mapper;
 import com.ecommerce.backend.category.dto.request.CategoryRequestPayload;
 import com.ecommerce.backend.category.dto.response.CategoryResponsePayload;
 import com.ecommerce.backend.category.entity.Category;
-import org.springframework.stereotype.Component;
+import org.mapstruct.Mapper;
 
 import java.util.List;
 
-@Component
-public class CategoryMapper {
+@Mapper(componentModel = "spring")
+public interface CategoryMapper {
 
-    public CategoryResponsePayload toDto(Category category) {
-        return new CategoryResponsePayload(
-                category.getId(),
-                category.getName(),
-                category.getSlug()
-        );
-    }
+    CategoryResponsePayload toDto(Category category);
 
-    public List<CategoryResponsePayload> toDto(List<Category> categories) {
-        return categories.stream()
-                .map(this::toDto)
-                .toList();
-    }
+    List<CategoryResponsePayload> toDto(List<Category> categories);
 
-    public Category toEntity(CategoryRequestPayload payload) {
-        return Category.builder()
-                .name(payload.name())
-                .slug(payload.slug())
-                .build();
-    }
+    Category toEntity(CategoryRequestPayload payload);
+
 }

@@ -4,27 +4,15 @@ import com.ecommerce.backend.auth.dto.request.NewUserPayload;
 import com.ecommerce.backend.auth.entity.User;
 import com.ecommerce.backend.auth.enums.AuthProvider;
 import com.ecommerce.backend.security.jwt.dtos.UserTokenPayload;
-import org.springframework.stereotype.Component;
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 
-@Component
-public class AuthMapper {
+@Mapper(componentModel = "spring")
+public interface AuthMapper {
 
-    public UserTokenPayload toDto(User user) {
-        return new UserTokenPayload(
-                user.getId(),
-                user.getEmail(),
-                user.getRole()
-        );
-    }
+    UserTokenPayload toDto(User user);
 
-    public User toEntity(NewUserPayload newUserPayload, AuthProvider authProvider) {
-        if (newUserPayload == null) return null;
+    @Mapping(target = "authProvider", source = "authProvider")
+    User toEntity(NewUserPayload newUserPayload, AuthProvider authProvider);
 
-        User newUser = new User();
-        newUser.setUsername(newUserPayload.username());
-        newUser.setEmail(newUserPayload.email());
-        newUser.setAuthProvider(authProvider);
-
-        return newUser;
-    }
 }

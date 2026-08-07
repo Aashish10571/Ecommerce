@@ -1,17 +1,14 @@
 package com.ecommerce.backend.product.dto.response;
 
-import com.ecommerce.backend.product.dto.common.ProductColorPayload;
-import com.ecommerce.backend.product.dto.common.ProductSizePayload;
-
 import java.math.BigDecimal;
 import java.util.UUID;
 
 public record ProductVariantResponsePayload(
         UUID id,
         String sku,
-        BigDecimal price,
-        Integer stock,
+        BigDecimal priceOverride,
+        Integer stockQuantity,
         boolean available,
-        ProductSizePayload sizePayload,
-        ProductColorPayload colorPayload
+        ProductSizeResponsePayload sizePayload,
+        ProductColorResponsePayload colorPayload
 ) { }

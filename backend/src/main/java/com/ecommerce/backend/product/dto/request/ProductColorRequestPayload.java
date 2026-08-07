@@ -1,8 +1,8 @@
-package com.ecommerce.backend.product.dto.common;
+package com.ecommerce.backend.product.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
 
-public record ProductColorPayload (
+public record ProductColorRequestPayload(
         @NotBlank String name,
         @NotBlank String hexCode
 ) { }

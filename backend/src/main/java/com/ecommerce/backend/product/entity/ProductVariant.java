@@ -43,9 +43,6 @@ public class ProductVariant extends AuditTable {
     @Column(name = "stock_quantity", nullable = false)
     private Integer stockQuantity = 0;
 
-//    @Column(name = "stock_available", nullable = false)
-//    private boolean available;
-
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "product_id")
     private Product product;

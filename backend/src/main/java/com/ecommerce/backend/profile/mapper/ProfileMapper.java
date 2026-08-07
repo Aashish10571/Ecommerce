@@ -2,16 +2,10 @@ package com.ecommerce.backend.profile.mapper;
 
 import com.ecommerce.backend.auth.entity.User;
 import com.ecommerce.backend.profile.dto.response.ProfileResponsePayload;
-import org.springframework.stereotype.Component;
+import org.mapstruct.Mapper;
 
-@Component
-public class ProfileMapper {
+@Mapper(componentModel = "spring")
+public interface ProfileMapper {
 
-    public ProfileResponsePayload toDto(User user) {
-        return new ProfileResponsePayload(
-                user.getUsername(),
-                user.getEmail(),
-                user.getCreatedAt()
-        );
-    }
+    ProfileResponsePayload toDto(User user);
 }

@@ -15,17 +15,5 @@ public record CategoryRequestPayload(
                 regexp = "^[a-zA-Z0-9\\s&'-]+$",
                 message = "Category name cannot contain special characters"
         )
-        String name,
-
-        @NotBlank(message = "Slug is required")
-        @Size(
-                min = 2,
-                max = 120,
-                message = "Slug must be between 2 and 120 characters"
-        )
-        @Pattern(
-                regexp = "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-                message = "Slug cannot contain uppercase letters, spaces, underscores, or special characters"
-        )
-        String slug
+        String name
 ) { }

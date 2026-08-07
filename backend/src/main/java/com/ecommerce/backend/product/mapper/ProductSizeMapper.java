@@ -1,6 +1,7 @@
 package com.ecommerce.backend.product.mapper;
 
-import com.ecommerce.backend.product.dto.common.ProductSizePayload;
+import com.ecommerce.backend.product.dto.request.ProductSizeRequestPayload;
+import com.ecommerce.backend.product.dto.response.ProductSizeResponsePayload;
 import com.ecommerce.backend.product.entity.ProductSize;
 import org.mapstruct.Mapper;
 
@@ -9,7 +10,9 @@ import java.util.List;
 @Mapper(componentModel = "spring")
 public interface ProductSizeMapper {
 
-    ProductSizePayload toDto(ProductSize entity);
+    ProductSizeResponsePayload toDto(ProductSize entity);
 
-    List<ProductSizePayload> toDto(List<ProductSize> entities);
+    List<ProductSizeResponsePayload> toDto(List<ProductSize> entities);
+
+    ProductSize toEntity(ProductSizeRequestPayload requestPayload);
 }
